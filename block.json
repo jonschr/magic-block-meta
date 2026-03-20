@@ -1,0 +1,30 @@
+{
+	"apiVersion": 3,
+	"name": "elodin/block-meta",
+	"title": "Meta Field",
+	"category": "widgets",
+	"icon": "admin-generic",
+	"description": "Display a registered plain-text post meta field.",
+	"textdomain": "elodin-block-meta",
+	"editorScript": "elodin-block-meta-editor",
+	"attributes": {
+		"metaKey": {
+			"type": "string",
+			"default": ""
+		},
+		"targetPostType": {
+			"type": "string",
+			"default": ""
+		},
+		"value": {
+			"type": "string",
+			"role": "content",
+			"default": ""
+		}
+	},
+	"usesContext": [ "postId", "postType" ],
+	"supports": {
+		"html": false,
+		"contentRole": true
+	}
+}
