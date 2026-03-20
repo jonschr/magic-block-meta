@@ -1,0 +1,49 @@
+{
+	"apiVersion": 3,
+	"name": "elodin/block-meta-conditional",
+	"title": "Meta Field Conditional",
+	"category": "widgets",
+	"icon": "visibility",
+	"description": "Render nested blocks only when a selected meta field meets the chosen condition.",
+	"textdomain": "elodin-block-meta",
+	"editorScript": "elodin-block-meta-editor",
+	"attributes": {
+		"metaKey": {
+			"type": "string",
+			"default": ""
+		},
+		"targetPostType": {
+			"type": "string",
+			"default": ""
+		},
+		"hideWhen": {
+			"type": "string",
+			"default": "empty"
+		}
+	},
+	"usesContext": [
+		"postId",
+		"postType",
+		"query",
+		"previewPostType",
+		"templateSlug"
+	],
+	"supports": {
+		"html": false,
+		"anchor": true,
+		"layout": true,
+		"spacing": {
+			"margin": true,
+			"padding": true,
+			"blockGap": true
+		},
+		"color": {
+			"background": true,
+			"text": true
+		},
+		"typography": {
+			"fontSize": true,
+			"lineHeight": true
+		}
+	}
+}

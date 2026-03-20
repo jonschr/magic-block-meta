@@ -1,5 +1,5 @@
 ( function ( wp, settings ) {
-	const { TextControl } = wp.components;
+	const { TextControl, TextareaControl } = wp.components;
 	const { useDispatch, useSelect } = wp.data;
 	const { createElement: el } = wp.element;
 	const { __ } = wp.i18n;
@@ -84,8 +84,10 @@
 				name: 'elodin-block-meta-fields',
 				title: __( 'Meta Fields', 'elodin-block-meta' ),
 			},
-			fields.map( ( field ) =>
-				el( TextControl, {
+			fields.map( ( field ) => {
+				const Control = field.multiline ? TextareaControl : TextControl;
+
+				return el( Control, {
 					key: field.value,
 					label: field.label,
 					value: getMetaValue( editorContext.meta, field.value ),
@@ -93,8 +95,9 @@
 						updateMetaValue( field.value, nextValue );
 					},
 					help: field.value,
-				} )
-			)
+					rows: field.multiline ? 6 : undefined,
+				} );
+			} )
 		);
 	}
 

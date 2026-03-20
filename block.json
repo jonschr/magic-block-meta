@@ -2,9 +2,9 @@
 	"apiVersion": 3,
 	"name": "elodin/block-meta",
 	"title": "Meta Field",
-	"category": "widgets",
+	"category": "text",
 	"icon": "admin-generic",
-	"description": "Display a registered plain-text post meta field.",
+	"description": "Edit and display a registered plain-text post meta field.",
 	"textdomain": "elodin-block-meta",
 	"editorScript": "elodin-block-meta-editor",
 	"attributes": {
@@ -20,11 +20,66 @@
 			"type": "string",
 			"role": "content",
 			"default": ""
+		},
+		"fieldMode": {
+			"type": "string",
+			"default": "auto"
 		}
 	},
-	"usesContext": [ "postId", "postType" ],
+	"usesContext": [
+		"postId",
+		"postType",
+		"query",
+		"previewPostType",
+		"templateSlug"
+	],
 	"supports": {
+		"splitting": true,
+		"anchor": true,
+		"className": false,
 		"html": false,
-		"contentRole": true
+		"contentRole": true,
+		"__experimentalBorder": {
+			"color": true,
+			"radius": true,
+			"style": true,
+			"width": true
+		},
+		"color": {
+			"gradients": true,
+			"link": true,
+			"__experimentalDefaultControls": {
+				"background": true,
+				"text": true
+			}
+		},
+		"spacing": {
+			"margin": true,
+			"padding": true,
+			"__experimentalDefaultControls": {
+				"margin": false,
+				"padding": false
+			}
+		},
+		"typography": {
+			"fontSize": true,
+			"lineHeight": true,
+			"__experimentalFontFamily": true,
+			"__experimentalTextDecoration": true,
+			"__experimentalFontStyle": true,
+			"__experimentalFontWeight": true,
+			"__experimentalLetterSpacing": true,
+			"__experimentalTextTransform": true,
+			"__experimentalWritingMode": true,
+			"fitText": true,
+			"__experimentalDefaultControls": {
+				"fontSize": true
+			}
+		},
+		"__experimentalSelector": "p",
+		"__unstablePasteTextInline": true,
+		"interactivity": {
+			"clientNavigation": true
+		}
 	}
 }

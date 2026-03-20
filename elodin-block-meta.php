@@ -75,6 +75,13 @@ function elodin_block_meta_register() {
 			'render_callback' => 'elodin_block_meta_render_block',
 		)
 	);
+
+	register_block_type(
+		__DIR__ . '/conditional-block.json',
+		array(
+			'render_callback' => 'elodin_block_meta_render_conditional_block',
+		)
+	);
 }
 add_action( 'init', 'elodin_block_meta_register', 30 );
 
@@ -131,7 +138,7 @@ function elodin_block_meta_sanitize_overrides( $value ) {
 		}
 
 		if ( is_scalar( $meta_value ) ) {
-			$sanitized[ $meta_key ] = sanitize_text_field( (string) $meta_value );
+			$sanitized[ $meta_key ] = sanitize_textarea_field( (string) $meta_value );
 		}
 	}
 
@@ -225,7 +232,7 @@ function elodin_block_meta_reapply_overrides_after_rest( $post, $request, $creat
 			continue;
 		}
 
-		update_post_meta( $post->ID, $meta_key, sanitize_text_field( (string) $value ) );
+		update_post_meta( $post->ID, $meta_key, elodin_block_meta_sanitize_registered_value( $post->post_type, $meta_key, $value ) );
 	}
 }
 
@@ -276,8 +283,9 @@ function elodin_block_meta_get_string_fields() {
 			}
 
 			$fields[] = array(
-				'value' => $meta_key,
-				'label' => elodin_block_meta_get_field_label( $meta_key, $args ),
+				'value'     => $meta_key,
+				'label'     => elodin_block_meta_get_field_label( $meta_key, $args ),
+				'multiline' => ! empty( $args['sanitize_callback'] ) && 'sanitize_textarea_field' === $args['sanitize_callback'],
 			);
 		}
 
@@ -296,6 +304,23 @@ function elodin_block_meta_get_string_fields() {
 	}
 
 	return $field_map;
+}
+
+function elodin_block_meta_sanitize_registered_value( $post_type, $meta_key, $value ) {
+	$registered_meta = get_registered_meta_keys( 'post', $post_type );
+	$args            = isset( $registered_meta[ $meta_key ] ) ? $registered_meta[ $meta_key ] : array();
+
+	if ( ! is_scalar( $value ) ) {
+		return '';
+	}
+
+	$value = (string) $value;
+
+	if ( ! empty( $args['sanitize_callback'] ) && is_callable( $args['sanitize_callback'] ) ) {
+		return (string) call_user_func( $args['sanitize_callback'], $value );
+	}
+
+	return sanitize_text_field( $value );
 }
 
 /**
@@ -323,6 +348,79 @@ function elodin_block_meta_get_field_label( $meta_key, $args ) {
 }
 
 /**
+ * Resolve the current post ID for frontend block rendering.
+ *
+ * @param WP_Block $block Parsed block instance.
+ * @return int
+ */
+function elodin_block_meta_resolve_post_id( $block ) {
+	$post_id = 0;
+
+	if ( $block instanceof WP_Block && isset( $block->context['postId'] ) ) {
+		$post_id = absint( $block->context['postId'] );
+	}
+
+	if ( ! $post_id ) {
+		$post_id = get_the_ID();
+	}
+
+	return absint( $post_id );
+}
+
+/**
+ * Get the current value for a meta key, honoring this plugin's override map.
+ *
+ * @param int    $post_id  Post ID.
+ * @param string $meta_key Meta key.
+ * @return string
+ */
+function elodin_block_meta_get_post_meta_value( $post_id, $meta_key ) {
+	$post_id  = absint( $post_id );
+	$meta_key = is_string( $meta_key ) ? $meta_key : '';
+
+	if ( ! $post_id || '' === $meta_key ) {
+		return '';
+	}
+
+	$overrides = get_post_meta( $post_id, ELODIN_BLOCK_META_OVERRIDE_KEY, true );
+
+	if ( is_array( $overrides ) && array_key_exists( $meta_key, $overrides ) ) {
+		$value = $overrides[ $meta_key ];
+	} else {
+		$value = get_post_meta( $post_id, $meta_key, true );
+	}
+
+	if ( ! is_scalar( $value ) ) {
+		return '';
+	}
+
+	return trim( (string) $value );
+}
+
+/**
+ * Resolve the value a meta field block should render.
+ *
+ * @param array    $attributes Block attributes.
+ * @param WP_Block $block      Parsed block instance.
+ * @return string
+ */
+function elodin_block_meta_get_render_value( $attributes, $block ) {
+	$value = isset( $attributes['value'] ) && is_scalar( $attributes['value'] ) ? trim( (string) $attributes['value'] ) : '';
+
+	if ( '' !== $value ) {
+		return $value;
+	}
+
+	$meta_key = isset( $attributes['metaKey'] ) && is_string( $attributes['metaKey'] ) ? $attributes['metaKey'] : '';
+
+	if ( '' === $meta_key ) {
+		return '';
+	}
+
+	return elodin_block_meta_get_post_meta_value( elodin_block_meta_resolve_post_id( $block ), $meta_key );
+}
+
+/**
  * Render the selected meta value on the frontend.
  *
  * @param array    $attributes Block attributes.
@@ -331,45 +429,44 @@ function elodin_block_meta_get_field_label( $meta_key, $args ) {
  * @return string
  */
 function elodin_block_meta_render_block( $attributes, $content, $block ) {
-	$value = isset( $attributes['value'] ) && is_scalar( $attributes['value'] ) ? trim( (string) $attributes['value'] ) : '';
+	unset( $content );
 
-	if ( '' === $value ) {
-		$meta_key = isset( $attributes['metaKey'] ) && is_string( $attributes['metaKey'] ) ? $attributes['metaKey'] : '';
-
-		if ( '' !== $meta_key ) {
-			$post_id = 0;
-
-			if ( isset( $block->context['postId'] ) ) {
-				$post_id = absint( $block->context['postId'] );
-			}
-
-			if ( ! $post_id ) {
-				$post_id = get_the_ID();
-			}
-
-			if ( $post_id ) {
-				$overrides = get_post_meta( $post_id, ELODIN_BLOCK_META_OVERRIDE_KEY, true );
-
-				if ( is_array( $overrides ) && array_key_exists( $meta_key, $overrides ) ) {
-					$fallback_value = $overrides[ $meta_key ];
-				} else {
-					$fallback_value = get_post_meta( $post_id, $meta_key, true );
-				}
-
-				if ( is_scalar( $fallback_value ) ) {
-					$value = trim( (string) $fallback_value );
-				}
-			}
-		}
-	}
+	$value = elodin_block_meta_get_render_value( $attributes, $block );
 
 	if ( '' === $value ) {
 		return '';
 	}
 
 	return sprintf(
-		'<div %1$s>%2$s</div>',
+		'<p %1$s>%2$s</p>',
 		get_block_wrapper_attributes(),
 		esc_html( $value )
+	);
+}
+
+/**
+ * Render a conditional wrapper for nested blocks.
+ *
+ * @param array    $attributes Block attributes.
+ * @param string   $content    Rendered inner block content.
+ * @param WP_Block $block      Parsed block instance.
+ * @return string
+ */
+function elodin_block_meta_render_conditional_block( $attributes, $content, $block ) {
+	$meta_key  = isset( $attributes['metaKey'] ) && is_string( $attributes['metaKey'] ) ? $attributes['metaKey'] : '';
+	$hide_when = isset( $attributes['hideWhen'] ) && is_string( $attributes['hideWhen'] ) ? $attributes['hideWhen'] : 'empty';
+
+	if ( '' !== $meta_key && 'empty' === $hide_when ) {
+		$value = elodin_block_meta_get_post_meta_value( elodin_block_meta_resolve_post_id( $block ), $meta_key );
+
+		if ( '' === $value ) {
+			return '';
+		}
+	}
+
+	return sprintf(
+		'<div %1$s>%2$s</div>',
+		get_block_wrapper_attributes(),
+		$content
 	);
 }
