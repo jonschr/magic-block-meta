@@ -60,6 +60,14 @@ function elodin_block_meta_register() {
 		true
 	);
 
+
+	wp_register_style(
+		'elodin-block-meta-editor-style',
+		plugins_url( 'editor.css', __FILE__ ),
+		array(),
+		ELODIN_BLOCK_META_VERSION
+	);
+
 	wp_localize_script(
 		'elodin-block-meta-panel',
 		'elodinBlockMetaSettings',
@@ -169,6 +177,7 @@ function elodin_block_meta_enqueue_panel_script() {
 	}
 
 	wp_enqueue_script( 'elodin-block-meta-panel' );
+	wp_enqueue_style( 'elodin-block-meta-editor-style' );
 }
 add_action( 'enqueue_block_editor_assets', 'elodin_block_meta_enqueue_panel_script' );
 
@@ -405,19 +414,48 @@ function elodin_block_meta_get_post_meta_value( $post_id, $meta_key ) {
  * @return string
  */
 function elodin_block_meta_get_render_value( $attributes, $block ) {
-	$value = isset( $attributes['value'] ) && is_scalar( $attributes['value'] ) ? trim( (string) $attributes['value'] ) : '';
+	$meta_key = isset( $attributes['metaKey'] ) && is_string( $attributes['metaKey'] ) ? $attributes['metaKey'] : '';
+	$post_id  = elodin_block_meta_resolve_post_id( $block );
 
-	if ( '' !== $value ) {
-		return $value;
+	if ( '' !== $meta_key && $post_id ) {
+		return elodin_block_meta_get_post_meta_value( $post_id, $meta_key );
+	}
+
+	return isset( $attributes['value'] ) && is_scalar( $attributes['value'] ) ? trim( (string) $attributes['value'] ) : '';
+}
+
+/**
+ * Resolve how a meta field block should behave when editing and rendering.
+ *
+ * @param array    $attributes Block attributes.
+ * @param WP_Block $block      Parsed block instance.
+ * @return string
+ */
+function elodin_block_meta_resolve_field_mode( $attributes, $block ) {
+	$field_mode = isset( $attributes['fieldMode'] ) && is_string( $attributes['fieldMode'] ) ? $attributes['fieldMode'] : 'auto';
+
+	if ( in_array( $field_mode, array( 'single', 'content' ), true ) ) {
+		return $field_mode;
 	}
 
 	$meta_key = isset( $attributes['metaKey'] ) && is_string( $attributes['metaKey'] ) ? $attributes['metaKey'] : '';
+	$post_id  = elodin_block_meta_resolve_post_id( $block );
 
-	if ( '' === $meta_key ) {
-		return '';
+	if ( '' === $meta_key || ! $post_id ) {
+		return 'single';
 	}
 
-	return elodin_block_meta_get_post_meta_value( elodin_block_meta_resolve_post_id( $block ), $meta_key );
+	$post_type = get_post_type( $post_id );
+	$field_map = elodin_block_meta_get_string_fields();
+	$fields    = isset( $field_map[ $post_type ] ) && is_array( $field_map[ $post_type ] ) ? $field_map[ $post_type ] : array();
+
+	foreach ( $fields as $field ) {
+		if ( ! empty( $field['value'] ) && $meta_key === $field['value'] ) {
+			return ! empty( $field['multiline'] ) ? 'content' : 'single';
+		}
+	}
+
+	return 'single';
 }
 
 /**
@@ -431,10 +469,19 @@ function elodin_block_meta_get_render_value( $attributes, $block ) {
 function elodin_block_meta_render_block( $attributes, $content, $block ) {
 	unset( $content );
 
-	$value = elodin_block_meta_get_render_value( $attributes, $block );
+	$value      = elodin_block_meta_get_render_value( $attributes, $block );
+	$field_mode = elodin_block_meta_resolve_field_mode( $attributes, $block );
 
 	if ( '' === $value ) {
 		return '';
+	}
+
+	if ( 'content' === $field_mode ) {
+		return sprintf(
+			'<div %1$s>%2$s</div>',
+			get_block_wrapper_attributes(),
+			wpautop( esc_html( $value ) )
+		);
 	}
 
 	return sprintf(

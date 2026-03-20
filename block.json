@@ -34,7 +34,7 @@
 		"templateSlug"
 	],
 	"supports": {
-		"splitting": true,
+		"splitting": false,
 		"anchor": true,
 		"className": false,
 		"html": false,

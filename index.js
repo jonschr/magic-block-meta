@@ -31,11 +31,6 @@
 	const fieldMap = settings && settings.fields ? settings.fields : {};
 	const overrideMetaKey = settings && settings.overrideMetaKey ? settings.overrideMetaKey : 'elodin_block_meta_overrides';
 	const ButtonBlockAppender = InnerBlocks.ButtonBlockAppender;
-	const CONDITIONAL_TEMPLATE_NOTICE = __(
-		'This region always stays visible in the editor. On the front end, it hides when the selected meta value is empty.',
-		'elodin-block-meta'
-	);
-
 	if ( addFilter ) {
 		addFilter(
 			'editor.postContentBlockTypes',
@@ -95,6 +90,101 @@
 		];
 	}
 
+	function buildFieldModeOptions( selectedField ) {
+		const autoLabel = selectedField
+			? selectedField.multiline
+				? __( 'Auto (Content area)', 'elodin-block-meta' )
+				: __( 'Auto (Single line)', 'elodin-block-meta' )
+			: __( 'Auto', 'elodin-block-meta' );
+
+		return [
+			{
+				label: autoLabel,
+				value: 'auto',
+			},
+			{
+				label: __( 'Single line', 'elodin-block-meta' ),
+				value: 'single',
+			},
+			{
+				label: __( 'Content area', 'elodin-block-meta' ),
+				value: 'content',
+			},
+		];
+	}
+
+	function resolveFieldMode( selectedField, fieldMode ) {
+		if ( 'single' === fieldMode || 'content' === fieldMode ) {
+			return fieldMode;
+		}
+
+		return selectedField && selectedField.multiline ? 'content' : 'single';
+	}
+
+	function escapeHtml( value ) {
+		return String( value )
+			.replace( /&/g, '&amp;' )
+			.replace( /</g, '&lt;' )
+			.replace( />/g, '&gt;' )
+			.replace( /"/g, '&quot;' )
+			.replace( /'/g, '&#039;' );
+	}
+
+	function plainTextToRichTextValue( value ) {
+		const normalizedValue = 'string' === typeof value ? value.replace( /\r\n?/g, '\n' ).trim() : '';
+
+		if ( ! normalizedValue ) {
+			return '';
+		}
+
+		return normalizedValue
+			.split( /\n{2,}/ )
+			.map( function ( paragraph ) {
+				return '<p>' + escapeHtml( paragraph ).replace( /\n/g, '<br>' ) + '</p>';
+			} )
+			.join( '' );
+	}
+
+	function richTextValueToPlainText( value ) {
+		if ( ! value ) {
+			return '';
+		}
+
+		if ( 'string' !== typeof value ) {
+			return String( value );
+		}
+
+		if ( 'undefined' === typeof window || ! window.document || ! window.Node ) {
+			return value
+				.replace( /<br\s*\/?>(?=.)/gi, '\n' )
+				.replace( /<\/p>\s*<p>/gi, '\n\n' )
+				.replace( /<[^>]+>/g, '' )
+				.trim();
+		}
+
+		const container = window.document.createElement( 'div' );
+		container.innerHTML = value;
+
+		const paragraphs = Array.from( container.childNodes ).map( function ( node ) {
+			if ( node.nodeType === window.Node.TEXT_NODE ) {
+				return node.textContent || '';
+			}
+
+			if ( node.nodeType !== window.Node.ELEMENT_NODE ) {
+				return '';
+			}
+
+			const clone = node.cloneNode( true );
+			clone.querySelectorAll( 'br' ).forEach( function ( br ) {
+				br.replaceWith( '\n' );
+			} );
+
+			return clone.textContent || '';
+		} );
+
+		return paragraphs.join( '\n\n' ).replace( /\n{3,}/g, '\n\n' ).trim();
+	}
+
 	function inferTemplatePostType( templateId ) {
 		if ( ! templateId || 'string' !== typeof templateId ) {
 			return '';
@@ -133,31 +223,25 @@
 		return meta[ overrideMetaKey ][ metaKey ];
 	}
 
-	function useEditorContext( context ) {
-		return useSelect(
-			function ( select ) {
-				const editorStore = select( 'core/editor' );
-				const postType =
+	function useEditorContext() {
+		return useSelect( function ( select ) {
+			const editorStore = select( 'core/editor' );
+
+			return {
+				postType:
 					editorStore && editorStore.getCurrentPostType
 						? editorStore.getCurrentPostType()
-						: null;
-				const postId =
+						: null,
+				postId:
 					editorStore && editorStore.getCurrentPostId
 						? editorStore.getCurrentPostId()
-						: null;
-				const currentTemplateId =
+						: null,
+				currentTemplateId:
 					editorStore && editorStore.getCurrentTemplateId
 						? editorStore.getCurrentTemplateId()
-						: '';
-
-				return {
-					postType: context.postType || postType,
-					postId: context.postId || postId,
-					currentTemplateId: currentTemplateId,
-				};
-			},
-			[ context.postId, context.postType ]
-		);
+						: '',
+			};
+		}, [] );
 	}
 
 	function getResolvedPostType( editorContext, attributes, context ) {
@@ -178,6 +262,7 @@
 			resolvedPostType: isTemplateEditor
 				? attributes.targetPostType || contextualPostType || inferredPostType
 				: contextualPostType || editorContext.postType,
+			canConfigureBinding: isTemplateEditor || !! contextualPostType,
 		};
 	}
 
@@ -236,8 +321,10 @@
 		);
 	}
 
-	function renderConditionalTemplateNotice( selectedField, hideWhen ) {
-		if ( ! selectedField ) {
+	function renderConditionalTemplateNotice( selectedField, metaKey ) {
+		const fieldLabel = selectedField ? selectedField.label : metaKey;
+
+		if ( ! fieldLabel ) {
 			return createElement(
 				Notice,
 				{
@@ -248,22 +335,10 @@
 			);
 		}
 
-		return createElement(
-			Notice,
-			{
-				status: 'info',
-				isDismissible: false,
-			},
-			'empty' === hideWhen
-				? sprintf(
-						__( 'Front end behavior: hide this region when `%s` is empty.', 'elodin-block-meta' ),
-						selectedField.label
-				  )
-				: CONDITIONAL_TEMPLATE_NOTICE
-		);
+		return null;
 	}
 
-	function renderFieldSettings( attributes, setAttributes, isTemplateEditor, inferredPostType, fields, title ) {
+	function renderFieldSettings( attributes, setAttributes, isTemplateEditor, inferredPostType, fields, selectedField, title, showFieldMode ) {
 		return createElement(
 			PanelBody,
 			{
@@ -306,7 +381,23 @@
 								'No compatible text meta fields are available for the selected post type.',
 								'elodin-block-meta'
 						  ),
-			} )
+			} ),
+			showFieldMode
+				? createElement( SelectControl, {
+						label: __( 'Field Mode', 'elodin-block-meta' ),
+						value: attributes.fieldMode || 'auto',
+						options: buildFieldModeOptions( selectedField ),
+						onChange: function ( nextFieldMode ) {
+							setAttributes( {
+								fieldMode: nextFieldMode,
+							} );
+						},
+						help: __(
+							'Auto follows the registered meta field. Content area uses Enter for paragraphs and Shift+Enter for line breaks.',
+							'elodin-block-meta'
+						),
+				  } )
+				: null
 		);
 	}
 
@@ -316,11 +407,12 @@
 			const setAttributes = props.setAttributes;
 			const blockProps = useBlockProps();
 
-			const editorContext = useEditorContext( props.context || {} );
+			const editorContext = useEditorContext();
 			const resolved = getResolvedPostType( editorContext, attributes, props.context || {} );
 			const isTemplateEditor = resolved.isTemplateEditor;
 			const inferredPostType = resolved.inferredPostType;
 			const resolvedPostType = resolved.resolvedPostType;
+			const canConfigureBinding = resolved.canConfigureBinding;
 			const fields = getFieldsForPostType( resolvedPostType );
 			const selectedField =
 				fields.find( function ( field ) {
@@ -341,6 +433,9 @@
 					: attributes.metaKey && 'string' === typeof meta[ attributes.metaKey ]
 						? meta[ attributes.metaKey ]
 						: '';
+			const resolvedFieldMode = resolveFieldMode( selectedField, attributes.fieldMode || 'auto' );
+			const editorValue =
+				'content' === resolvedFieldMode ? plainTextToRichTextValue( metaValue ) : metaValue;
 			const canEditInline = !! (
 				attributes.metaKey &&
 				resolvedPostType &&
@@ -349,7 +444,7 @@
 			);
 
 			function updateMetaValue( nextValue ) {
-				const cleanValue = nextValue || '';
+				const cleanValue = richTextValueToPlainText( nextValue || '' );
 
 				setAttributes( {
 					value: cleanValue,
@@ -376,18 +471,22 @@
 			return createElement(
 				Fragment,
 				null,
-				createElement(
-					InspectorControls,
-					null,
-					renderFieldSettings(
-						attributes,
-						setAttributes,
-						isTemplateEditor,
-						inferredPostType,
-						fields,
-						__( 'Meta Field', 'elodin-block-meta' )
+				canConfigureBinding
+					? createElement(
+						InspectorControls,
+						null,
+						renderFieldSettings(
+							attributes,
+							setAttributes,
+							isTemplateEditor,
+							inferredPostType,
+							fields,
+							selectedField,
+							__( 'Meta Field', 'elodin-block-meta' ),
+							true
+						)
 					)
-				),
+					: null,
 				! attributes.metaKey
 					? ( isTemplateEditor
 						? renderTemplateNotice( blockProps, resolvedPostType, false )
@@ -422,15 +521,17 @@
 						? renderLockedFieldPreview( blockProps, selectedField, attributes.metaKey )
 						: createElement( RichText, {
 									...blockProps,
-									tagName: 'p',
+									tagName: 'content' === resolvedFieldMode ? 'div' : 'p',
 									className:
 										( blockProps.className ? blockProps.className + ' ' : '' ) + 'elodin-block-meta__value',
-									value: metaValue,
+									value: editorValue,
 									onChange: updateMetaValue,
 									placeholder: selectedField ? selectedField.label : attributes.metaKey,
 									allowedFormats: [],
 									withoutInteractiveFormatting: true,
 									identifier: 'value',
+									disableLineBreaks: 'single' === resolvedFieldMode,
+									multiline: 'content' === resolvedFieldMode ? 'p' : undefined,
 									style: Object.assign( {}, blockProps.style || {}, {
 										background: 'transparent',
 										padding: blockProps.style && undefined !== blockProps.style.padding ? blockProps.style.padding : 0,
@@ -453,20 +554,33 @@
 				className: 'elodin-block-meta-conditional',
 			} );
 
-			const editorContext = useEditorContext( props.context || {} );
+			const editorContext = useEditorContext();
 			const resolved = getResolvedPostType( editorContext, attributes, props.context || {} );
 			const isTemplateEditor = resolved.isTemplateEditor;
 			const inferredPostType = resolved.inferredPostType;
 			const resolvedPostType = resolved.resolvedPostType;
+			const canConfigureBinding = resolved.canConfigureBinding;
 			const fields = getFieldsForPostType( resolvedPostType );
 			const selectedField =
 				fields.find( function ( field ) {
 					return field.value === attributes.metaKey;
 				} ) || null;
+			const hasInnerBlocks = useSelect(
+				function ( select ) {
+					const blockEditorStore = select( 'core/block-editor' );
+					const innerBlockOrder =
+						blockEditorStore && blockEditorStore.getBlockOrder
+							? blockEditorStore.getBlockOrder( props.clientId )
+							: [];
+
+					return innerBlockOrder.length > 0;
+				},
+				[ props.clientId ]
+			);
 			const innerBlocksProps = useInnerBlocksProps(
 				blockProps,
 				{
-					renderAppender: ButtonBlockAppender,
+					renderAppender: hasInnerBlocks ? undefined : ButtonBlockAppender,
 					templateLock: false,
 				}
 			);
@@ -474,47 +588,51 @@
 			return createElement(
 				Fragment,
 				null,
-				createElement(
-					InspectorControls,
-					null,
-					createElement(
-						Fragment,
+				canConfigureBinding
+					? createElement(
+						InspectorControls,
 						null,
-						renderFieldSettings(
-							attributes,
-							setAttributes,
-							isTemplateEditor,
-							inferredPostType,
-							fields,
-							__( 'Meta Field Conditional', 'elodin-block-meta' )
-						),
 						createElement(
-							PanelBody,
-							{
-								title: __( 'Display Rules', 'elodin-block-meta' ),
-								initialOpen: true,
-							},
-							createElement( SelectControl, {
-								label: __( 'Hide when', 'elodin-block-meta' ),
-								value: attributes.hideWhen || 'empty',
-								options: buildHideWhenOptions(),
-								onChange: function ( nextHideWhen ) {
-									setAttributes( {
-										hideWhen: nextHideWhen,
-									} );
+							Fragment,
+							null,
+							renderFieldSettings(
+								attributes,
+								setAttributes,
+								isTemplateEditor,
+								inferredPostType,
+								fields,
+								selectedField,
+								__( 'Meta Field Conditional', 'elodin-block-meta' ),
+								false
+							),
+							createElement(
+								PanelBody,
+								{
+									title: __( 'Display Rules', 'elodin-block-meta' ),
+									initialOpen: true,
 								},
-								help: __(
-									'Front end only. This block always stays visible while editing.',
-									'elodin-block-meta'
-								),
-							} )
+								createElement( SelectControl, {
+									label: __( 'Hide when', 'elodin-block-meta' ),
+									value: attributes.hideWhen || 'empty',
+									options: buildHideWhenOptions(),
+									onChange: function ( nextHideWhen ) {
+										setAttributes( {
+											hideWhen: nextHideWhen,
+										} );
+									},
+									help: __(
+										'Front end only. This block always stays visible while editing.',
+										'elodin-block-meta'
+									),
+								} )
+							)
 						)
 					)
-				),
+					: null,
 				createElement(
 					'div',
 					innerBlocksProps,
-					isTemplateEditor ? renderConditionalTemplateNotice( selectedField, attributes.hideWhen || 'empty' ) : null,
+					isTemplateEditor ? renderConditionalTemplateNotice( selectedField, attributes.metaKey ) : null,
 					innerBlocksProps.children
 				)
 			);
