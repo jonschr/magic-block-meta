@@ -1,8 +1,29 @@
-.editor-styles-wrapper .elodin-block-meta__value > p {
+.editor-styles-wrapper .wp-block-elodin-block-meta.elodin-block-meta--single .elodin-block-meta__value {
+	margin: 0;
+}
+
+.editor-styles-wrapper .wp-block-elodin-block-meta.elodin-block-meta--content .elodin-block-meta__value > p {
 	margin-block-start: 0;
 	margin-block-end: 0;
 }
 
-.editor-styles-wrapper .elodin-block-meta__value > p + p {
+.editor-styles-wrapper .wp-block-elodin-block-meta.elodin-block-meta--content .elodin-block-meta__value > p + p {
 	margin-block-start: var(--wp--style--block-gap, 1.5em);
+}
+
+.editor-styles-wrapper .wp-block-elodin-block-meta {
+	--wp-admin-theme-color: #7f54b3;
+	--wp-admin-theme-color--rgb: 127, 84, 179;
+	--wp-admin-theme-color-darker-10: #70449f;
+	--wp-admin-theme-color-darker-10--rgb: 112, 68, 159;
+	--wp-admin-theme-color-darker-20: #61358b;
+	--wp-admin-theme-color-darker-20--rgb: 97, 53, 139;
+	--wp-block-synced-color: #7f54b3;
+	--wp-block-synced-color--rgb: 127, 84, 179;
+	outline: 1px dashed rgba(127, 84, 179, 0.9);
+	outline-offset: 0;
+}
+
+.editor-styles-wrapper .wp-block-elodin-block-meta:hover:not(.is-selected):not(:focus-within) {
+	box-shadow: inset 0 0 0 1px #fff, 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wp-admin-theme-color);
 }

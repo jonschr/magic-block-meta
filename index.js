@@ -303,21 +303,32 @@
 		);
 	}
 
-	function renderLockedFieldPreview( blockProps, selectedField, metaKey ) {
+	function getFieldWrapperProps( blockProps, resolvedFieldMode ) {
+		return Object.assign( {}, blockProps, {
+			className: [
+				blockProps.className,
+				'content' === resolvedFieldMode ? 'elodin-block-meta--content' : 'elodin-block-meta--single',
+			]
+				.filter( Boolean )
+				.join( ' ' ),
+		} );
+	}
+
+	function renderLockedFieldPreview( blockProps, selectedField, metaKey, resolvedFieldMode ) {
 		return createElement(
-			'p',
-			{
-				...blockProps,
-				className:
-					( blockProps.className ? blockProps.className + ' ' : '' ) + 'elodin-block-meta__value',
-				style: Object.assign( {}, blockProps.style || {}, {
-					background: 'transparent',
-					padding: blockProps.style && undefined !== blockProps.style.padding ? blockProps.style.padding : 0,
-					margin: blockProps.style && undefined !== blockProps.style.margin ? blockProps.style.margin : 0,
-				} ),
-				'aria-label': selectedField ? selectedField.label : metaKey,
-			},
-			selectedField ? selectedField.label : metaKey
+			'div',
+			getFieldWrapperProps( blockProps, resolvedFieldMode ),
+			createElement(
+				'p',
+				{
+					className: 'elodin-block-meta__value',
+					style: {
+						background: 'transparent',
+					},
+					'aria-label': selectedField ? selectedField.label : metaKey,
+				},
+				selectedField ? selectedField.label : metaKey
+			)
 		);
 	}
 
@@ -492,7 +503,7 @@
 						? renderTemplateNotice( blockProps, resolvedPostType, false )
 						: createElement(
 								'div',
-								blockProps,
+								getFieldWrapperProps( blockProps, resolvedFieldMode ),
 								createElement(
 									Placeholder,
 									{
@@ -518,12 +529,13 @@
 								)
 						  ) )
 					: ! canEditInline
-						? renderLockedFieldPreview( blockProps, selectedField, attributes.metaKey )
-						: createElement( RichText, {
-									...blockProps,
+						? renderLockedFieldPreview( blockProps, selectedField, attributes.metaKey, resolvedFieldMode )
+						: createElement(
+								'div',
+								getFieldWrapperProps( blockProps, resolvedFieldMode ),
+								createElement( RichText, {
 									tagName: 'content' === resolvedFieldMode ? 'div' : 'p',
-									className:
-										( blockProps.className ? blockProps.className + ' ' : '' ) + 'elodin-block-meta__value',
+									className: 'elodin-block-meta__value',
 									value: editorValue,
 									onChange: updateMetaValue,
 									placeholder: selectedField ? selectedField.label : attributes.metaKey,
@@ -532,13 +544,12 @@
 									identifier: 'value',
 									disableLineBreaks: 'single' === resolvedFieldMode,
 									multiline: 'content' === resolvedFieldMode ? 'p' : undefined,
-									style: Object.assign( {}, blockProps.style || {}, {
+									style: {
 										background: 'transparent',
-										padding: blockProps.style && undefined !== blockProps.style.padding ? blockProps.style.padding : 0,
-										margin: blockProps.style && undefined !== blockProps.style.margin ? blockProps.style.margin : 0,
-									} ),
+									},
 									'aria-label': selectedField ? selectedField.label : attributes.metaKey,
 								} )
+							)
 			);
 		},
 		save: function () {
