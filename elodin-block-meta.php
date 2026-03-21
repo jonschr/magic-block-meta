@@ -49,6 +49,7 @@ function elodin_block_meta_register() {
 		'elodin-block-meta-panel',
 		plugins_url( 'panel.js', __FILE__ ),
 		array(
+			'wp-api-fetch',
 			'wp-components',
 			'wp-data',
 			'wp-edit-post',
@@ -196,56 +197,6 @@ function elodin_block_meta_enable_custom_fields_support() {
 add_action( 'init', 'elodin_block_meta_enable_custom_fields_support', 40 );
 
 /**
- * Re-apply override values after REST saves so this plugin remains authoritative.
- */
-function elodin_block_meta_register_rest_priority_hooks() {
-	$field_map = elodin_block_meta_get_string_fields();
-
-	foreach ( array_keys( $field_map ) as $post_type ) {
-		add_action(
-			'rest_after_insert_' . $post_type,
-			'elodin_block_meta_reapply_overrides_after_rest',
-			20,
-			3
-		);
-	}
-}
-add_action( 'init', 'elodin_block_meta_register_rest_priority_hooks', 50 );
-
-/**
- * Re-apply override values to registered meta fields after REST saves.
- *
- * @param WP_Post         $post     Inserted or updated post.
- * @param WP_REST_Request $request  Request object.
- * @param bool            $creating Whether this is a creation request.
- */
-function elodin_block_meta_reapply_overrides_after_rest( $post, $request, $creating ) {
-	unset( $request, $creating );
-
-	if ( ! $post instanceof WP_Post ) {
-		return;
-	}
-
-	$overrides = get_post_meta( $post->ID, ELODIN_BLOCK_META_OVERRIDE_KEY, true );
-
-	if ( ! is_array( $overrides ) || empty( $overrides ) ) {
-		return;
-	}
-
-	$allowed_fields = elodin_block_meta_get_string_fields();
-	$allowed_fields = isset( $allowed_fields[ $post->post_type ] ) ? $allowed_fields[ $post->post_type ] : array();
-	$allowed_keys   = wp_list_pluck( $allowed_fields, 'value' );
-
-	foreach ( $overrides as $meta_key => $value ) {
-		if ( ! in_array( $meta_key, $allowed_keys, true ) ) {
-			continue;
-		}
-
-		update_post_meta( $post->ID, $meta_key, elodin_block_meta_sanitize_registered_value( $post->post_type, $meta_key, $value ) );
-	}
-}
-
-/**
  * Build a map of registered, editable string meta fields keyed by post type.
  *
  * @return array<string, array<int, array<string, string>>>
@@ -313,6 +264,62 @@ function elodin_block_meta_get_string_fields() {
 	}
 
 	return $field_map;
+}
+
+function elodin_block_meta_reapply_overrides_after_save( $post_id, $post, $update ) {
+	unset( $update );
+
+	if ( ! $post instanceof WP_Post ) {
+		return;
+	}
+
+	if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+		return;
+	}
+
+	elodin_block_meta_sync_overrides_to_registered_meta( $post_id, $post->post_type );
+}
+
+/**
+ * Sync override values back into registered post meta.
+ *
+ * @param int    $post_id   Post ID.
+ * @param string $post_type Post type.
+ * @return void
+ */
+function elodin_block_meta_sync_overrides_to_registered_meta( $post_id, $post_type ) {
+	$post_id   = absint( $post_id );
+	$post_type = is_string( $post_type ) ? $post_type : '';
+
+	if ( ! $post_id || '' === $post_type ) {
+		return;
+	}
+
+	$overrides = get_post_meta( $post_id, ELODIN_BLOCK_META_OVERRIDE_KEY, true );
+
+	if ( ! is_array( $overrides ) || empty( $overrides ) ) {
+		return;
+	}
+
+	$allowed_fields = elodin_block_meta_get_string_fields();
+	$allowed_fields = isset( $allowed_fields[ $post_type ] ) ? $allowed_fields[ $post_type ] : array();
+	$allowed_keys   = wp_list_pluck( $allowed_fields, 'value' );
+
+	foreach ( $overrides as $meta_key => $value ) {
+		if ( ! in_array( $meta_key, $allowed_keys, true ) ) {
+			continue;
+		}
+
+		$sanitized = elodin_block_meta_sanitize_registered_value( $post_type, $meta_key, $value );
+		$current   = get_post_meta( $post_id, $meta_key, true );
+		$current   = is_scalar( $current ) ? (string) $current : '';
+
+		if ( $current === $sanitized ) {
+			continue;
+		}
+
+		update_post_meta( $post_id, $meta_key, $sanitized );
+	}
 }
 
 function elodin_block_meta_sanitize_registered_value( $post_type, $meta_key, $value ) {
@@ -391,13 +398,7 @@ function elodin_block_meta_get_post_meta_value( $post_id, $meta_key ) {
 		return '';
 	}
 
-	$overrides = get_post_meta( $post_id, ELODIN_BLOCK_META_OVERRIDE_KEY, true );
-
-	if ( is_array( $overrides ) && array_key_exists( $meta_key, $overrides ) ) {
-		$value = $overrides[ $meta_key ];
-	} else {
-		$value = get_post_meta( $post_id, $meta_key, true );
-	}
+	$value = get_post_meta( $post_id, $meta_key, true );
 
 	if ( ! is_scalar( $value ) ) {
 		return '';

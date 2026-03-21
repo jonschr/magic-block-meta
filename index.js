@@ -29,7 +29,7 @@
 	const sprintf = wp.i18n.sprintf;
 
 	const fieldMap = settings && settings.fields ? settings.fields : {};
-	const overrideMetaKey = settings && settings.overrideMetaKey ? settings.overrideMetaKey : 'elodin_block_meta_overrides';
+	const runtime = window.elodinBlockMetaRuntime || ( window.elodinBlockMetaRuntime = { dirtyByEntity: {} } );
 	const ButtonBlockAppender = InnerBlocks.ButtonBlockAppender;
 	if ( addFilter ) {
 		addFilter(
@@ -209,18 +209,26 @@
 		return '';
 	}
 
-	function getOverrideValue( meta, metaKey ) {
-		if (
-			! meta ||
-			! metaKey ||
-			! meta[ overrideMetaKey ] ||
-			'object' !== typeof meta[ overrideMetaKey ] ||
-			'string' !== typeof meta[ overrideMetaKey ][ metaKey ]
-		) {
-			return null;
+	function getEntityKey( postType, postId ) {
+		if ( ! postType || ! postId ) {
+			return '';
 		}
 
-		return meta[ overrideMetaKey ][ metaKey ];
+		return postType + ':' + postId;
+	}
+
+	function markDirtyMetaValue( postType, postId, metaKey, value ) {
+		const entityKey = getEntityKey( postType, postId );
+
+		if ( ! entityKey || ! metaKey ) {
+			return;
+		}
+
+		if ( ! runtime.dirtyByEntity[ entityKey ] ) {
+			runtime.dirtyByEntity[ entityKey ] = {};
+		}
+
+		runtime.dirtyByEntity[ entityKey ][ metaKey ] = value;
 	}
 
 	function useEditorContext() {
@@ -437,13 +445,10 @@
 			);
 			const meta = metaValueTuple[ 0 ] || {};
 			const setMeta = metaValueTuple[ 1 ];
-			const overrideValue = getOverrideValue( meta, attributes.metaKey );
 			const metaValue =
-				null !== overrideValue
-					? overrideValue
-					: attributes.metaKey && 'string' === typeof meta[ attributes.metaKey ]
-						? meta[ attributes.metaKey ]
-						: '';
+				attributes.metaKey && 'string' === typeof meta[ attributes.metaKey ]
+					? meta[ attributes.metaKey ]
+					: '';
 			const resolvedFieldMode = resolveFieldMode( selectedField, attributes.fieldMode || 'auto' );
 			const editorValue =
 				'content' === resolvedFieldMode ? plainTextToRichTextValue( metaValue ) : metaValue;
@@ -468,15 +473,10 @@
 				setMeta(
 					Object.assign( {}, meta, {
 						[ attributes.metaKey ]: cleanValue,
-						[ overrideMetaKey ]: Object.assign(
-							{},
-							meta[ overrideMetaKey ] && 'object' === typeof meta[ overrideMetaKey ] ? meta[ overrideMetaKey ] : {},
-							{
-								[ attributes.metaKey ]: cleanValue,
-							}
-						),
 					} )
 				);
+
+				markDirtyMetaValue( resolvedPostType, editorContext.postId, attributes.metaKey, cleanValue );
 			}
 
 			return createElement(
