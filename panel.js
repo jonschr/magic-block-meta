@@ -8,14 +8,16 @@
 	const apiFetch = wp.apiFetch;
 
 	const fieldMap = settings && settings.fields ? settings.fields : {};
-	const runtime = window.elodinBlockMetaRuntime || ( window.elodinBlockMetaRuntime = { dirtyByEntity: {} } );
+	const runtime = window.magicBlockMetaRuntime || ( window.magicBlockMetaRuntime = { dirtyByEntity: {} } );
 
 	function getFieldsForPostType( postType ) {
 		if ( ! postType || ! fieldMap[ postType ] ) {
 			return [];
 		}
 
-		return fieldMap[ postType ];
+		return fieldMap[ postType ].filter( function ( field ) {
+			return 'text' === field.type;
+		} );
 	}
 
 	function getEntityKey( postType, postId ) {
@@ -133,8 +135,8 @@
 		return el(
 			PluginDocumentSettingPanel,
 			{
-				name: 'elodin-block-meta-fields',
-				title: __( 'Meta Fields', 'elodin-block-meta' ),
+				name: 'magic-block-meta-fields',
+				title: __( 'Meta Fields', 'magic-block-meta' ),
 			},
 			fields.map( ( field ) => {
 				const Control = field.multiline ? TextareaControl : TextControl;
@@ -153,7 +155,7 @@
 		);
 	}
 
-	registerPlugin( 'elodin-block-meta-panel', {
+	registerPlugin( 'magic-block-meta-panel', {
 		render: MetaFieldsPanel,
 	} );
 
@@ -212,4 +214,4 @@
 				lateSyncInFlight = false;
 			} );
 	} );
-} )( window.wp, window.elodinBlockMetaSettings || {} );
+} )( window.wp, window.magicBlockMetaSettings || {} );

@@ -1,12 +1,13 @@
 {
 	"apiVersion": 3,
-	"name": "elodin/block-meta",
-	"title": "Meta Field",
+	"name": "magic/block-meta",
+	"title": "Magic Meta Field: Text",
 	"category": "text",
 	"icon": "admin-generic",
 	"description": "Edit and display a registered plain-text post meta field.",
-	"textdomain": "elodin-block-meta",
-	"editorScript": "elodin-block-meta-editor",
+	"keywords": [ "magic", "meta", "field", "text" ],
+	"textdomain": "magic-block-meta",
+	"editorScript": "magic-block-meta-editor",
 	"attributes": {
 		"metaKey": {
 			"type": "string",

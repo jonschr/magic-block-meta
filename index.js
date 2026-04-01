@@ -17,7 +17,6 @@
 	const InnerBlocks = wp.blockEditor.InnerBlocks;
 	const useInnerBlocksProps = wp.blockEditor.useInnerBlocksProps;
 	const PanelBody = wp.components.PanelBody;
-	const Placeholder = wp.components.Placeholder;
 	const SelectControl = wp.components.SelectControl;
 	const Notice = wp.components.Notice;
 	const useSelect = wp.data.useSelect;
@@ -29,37 +28,48 @@
 	const sprintf = wp.i18n.sprintf;
 
 	const fieldMap = settings && settings.fields ? settings.fields : {};
-	const runtime = window.elodinBlockMetaRuntime || ( window.elodinBlockMetaRuntime = { dirtyByEntity: {} } );
+	const runtime = window.magicBlockMetaRuntime || ( window.magicBlockMetaRuntime = { dirtyByEntity: {} } );
 	const ButtonBlockAppender = InnerBlocks.ButtonBlockAppender;
+
 	if ( addFilter ) {
 		addFilter(
 			'editor.postContentBlockTypes',
-			'elodin-block-meta/post-content-blocks',
+			'magic-block-meta/post-content-blocks',
 			function ( blockTypes ) {
 				const nextTypes = Array.isArray( blockTypes ) ? blockTypes.slice() : [];
 
-				[ 'elodin/block-meta' ].forEach( function ( blockName ) {
-					if ( ! nextTypes.includes( blockName ) ) {
-						nextTypes.push( blockName );
-					}
-				} );
+				if ( ! nextTypes.includes( 'magic/block-meta' ) ) {
+					nextTypes.push( 'magic/block-meta' );
+				}
 
 				return nextTypes;
 			}
 		);
 	}
 
-	function getFieldsForPostType( postType ) {
+	function getFieldsForPostType( postType, fieldType ) {
 		if ( ! postType || ! fieldMap[ postType ] ) {
 			return [];
 		}
 
-		return fieldMap[ postType ];
+		const fields = fieldMap[ postType ];
+
+		if ( ! fieldType ) {
+			return fields;
+		}
+
+		return fields.filter( function ( field ) {
+			return fieldType === field.type;
+		} );
+	}
+
+	function isTextField( field ) {
+		return !! field && 'text' === field.type;
 	}
 
 	function buildFieldOptions( fields ) {
 		return [
-			{ label: __( 'Select a field', 'elodin-block-meta' ), value: '' },
+			{ label: __( 'Select a field', 'magic-block-meta' ), value: '' },
 			...fields.map( function ( field ) {
 				return {
 					label: field.label,
@@ -71,7 +81,7 @@
 
 	function buildPostTypeOptions() {
 		return [
-			{ label: __( 'Select a post type', 'elodin-block-meta' ), value: '' },
+			{ label: __( 'Select a post type', 'magic-block-meta' ), value: '' },
 			...Object.keys( fieldMap ).map( function ( postType ) {
 				return {
 					label: postType,
@@ -81,21 +91,43 @@
 		];
 	}
 
+	function buildTemplatePostTypeOptions( defaultPostType ) {
+		const baseOptions = buildPostTypeOptions();
+
+		if ( ! defaultPostType ) {
+			return baseOptions;
+		}
+
+		return [
+			{
+				label: sprintf( __( 'Follow current context (%s)', 'magic-block-meta' ), defaultPostType ),
+				value: '',
+			},
+			...baseOptions.filter( function ( option ) {
+				return '' !== option.value;
+			} ),
+		];
+	}
+
 	function buildHideWhenOptions() {
 		return [
 			{
-				label: __( 'Meta value is empty', 'elodin-block-meta' ),
+				label: __( 'Meta value is empty', 'magic-block-meta' ),
 				value: 'empty',
 			},
 		];
 	}
 
 	function buildFieldModeOptions( selectedField ) {
+		if ( ! isTextField( selectedField ) ) {
+			return [];
+		}
+
 		const autoLabel = selectedField
 			? selectedField.multiline
-				? __( 'Auto (Content area)', 'elodin-block-meta' )
-				: __( 'Auto (Single line)', 'elodin-block-meta' )
-			: __( 'Auto', 'elodin-block-meta' );
+				? __( 'Auto (Content area)', 'magic-block-meta' )
+				: __( 'Auto (Single line)', 'magic-block-meta' )
+			: __( 'Auto', 'magic-block-meta' );
 
 		return [
 			{
@@ -103,11 +135,11 @@
 				value: 'auto',
 			},
 			{
-				label: __( 'Single line', 'elodin-block-meta' ),
+				label: __( 'Single line', 'magic-block-meta' ),
 				value: 'single',
 			},
 			{
-				label: __( 'Content area', 'elodin-block-meta' ),
+				label: __( 'Content area', 'magic-block-meta' ),
 				value: 'content',
 			},
 		];
@@ -185,14 +217,14 @@
 		return paragraphs.join( '\n\n' ).replace( /\n{3,}/g, '\n\n' ).trim();
 	}
 
-	function inferTemplatePostType( templateId ) {
-		if ( ! templateId || 'string' !== typeof templateId ) {
+	function inferTemplatePostType( templateReference ) {
+		if ( ! templateReference || 'string' !== typeof templateReference ) {
 			return '';
 		}
 
-		const templateSlug = templateId.includes( '//' )
-			? templateId.split( '//' ).pop()
-			: templateId;
+		const templateSlug = templateReference.includes( '//' )
+			? templateReference.split( '//' ).pop()
+			: templateReference;
 
 		if ( ! templateSlug || 'string' !== typeof templateSlug ) {
 			return '';
@@ -206,7 +238,30 @@
 			return templateSlug.replace( 'archive-', '' );
 		}
 
+		if ( 'single' === templateSlug ) {
+			return 'post';
+		}
+
+		if ( 'page' === templateSlug ) {
+			return 'page';
+		}
+
 		return '';
+	}
+
+	function getContextPostType( context ) {
+		const contextPostType =
+			context && 'string' === typeof context.postType ? context.postType : '';
+
+		if (
+			! contextPostType ||
+			'wp_template' === contextPostType ||
+			'wp_template_part' === contextPostType
+		) {
+			return '';
+		}
+
+		return contextPostType;
 	}
 
 	function getEntityKey( postType, postId ) {
@@ -248,25 +303,36 @@
 					editorStore && editorStore.getCurrentTemplateId
 						? editorStore.getCurrentTemplateId()
 						: '',
+				currentTemplateSlug:
+					editorStore && editorStore.getEditedPostAttribute
+						? editorStore.getEditedPostAttribute( 'slug' ) || ''
+						: '',
 			};
 		}, [] );
 	}
 
 	function getResolvedPostType( editorContext, attributes, context ) {
 		const isTemplateEditor = 'wp_template' === editorContext.postType;
-		const inferredPostType = inferTemplatePostType( editorContext.currentTemplateId );
+		const inferredPostType =
+			inferTemplatePostType(
+				context && 'string' === typeof context.templateSlug ? context.templateSlug : ''
+			) ||
+			inferTemplatePostType( editorContext.currentTemplateSlug ) ||
+			inferTemplatePostType( editorContext.currentTemplateId );
 		const queryPostType =
 			context && context.query && 'string' === typeof context.query.postType
 				? context.query.postType
 				: '';
 		const previewPostType =
 			context && 'string' === typeof context.previewPostType ? context.previewPostType : '';
-		const contextualPostType = queryPostType || previewPostType || '';
+		const contextPostType = getContextPostType( context );
+		const contextualPostType = queryPostType || previewPostType || contextPostType || '';
 
 		return {
 			isTemplateEditor: isTemplateEditor,
 			inferredPostType: inferredPostType,
 			contextualPostType: contextualPostType,
+			defaultPostType: contextualPostType || inferredPostType,
 			resolvedPostType: isTemplateEditor
 				? attributes.targetPostType || contextualPostType || inferredPostType
 				: contextualPostType || editorContext.postType,
@@ -274,40 +340,49 @@
 		};
 	}
 
-	function renderTemplateNotice( blockProps, resolvedPostType, hasField ) {
+	function renderCompactState( blockProps, resolvedFieldMode, title, messages ) {
 		return createElement(
 			'div',
-			blockProps,
-			createElement(
-				Placeholder,
-				{
-					label: __( 'Meta Field', 'elodin-block-meta' ),
-					instructions: __(
-						'Configure the target post type and field in the block settings.',
-						'elodin-block-meta'
-					),
-				},
+			getFieldWrapperProps( blockProps, resolvedFieldMode || 'single' ),
+			createElement( 'div', { className: 'magic-block-meta__placeholder' }, [
 				createElement(
 					'p',
-					null,
-					resolvedPostType
-						? sprintf(
-								__( 'Using fields registered for the `%s` post type.', 'elodin-block-meta' ),
-								resolvedPostType
-						  )
-						: __(
-								'Select a target post type to see available meta fields.',
-								'elodin-block-meta'
-						  )
+					{
+						key: 'title',
+						className: 'magic-block-meta__placeholder-title',
+					},
+					title
 				),
-				createElement(
-					'p',
-					null,
-					hasField
-						? __( 'This block will render that field when viewing a post.', 'elodin-block-meta' )
-						: __( 'Choose a field to link this block to a meta value.', 'elodin-block-meta' )
-				)
-			)
+				...messages.map( function ( message, index ) {
+					return createElement(
+						'p',
+						{
+							key: 'message-' + index,
+							className: 'magic-block-meta__placeholder-text',
+						},
+						message
+					);
+				} ),
+			] )
+		);
+	}
+
+	function renderTemplateNotice( blockProps, resolvedPostType, hasField, title ) {
+		return renderCompactState(
+			blockProps,
+			'single',
+			title,
+			[
+				resolvedPostType
+					? sprintf(
+							__( 'Using `%s` fields.', 'magic-block-meta' ),
+							resolvedPostType
+					  )
+					: __( 'Select a target post type to see available fields.', 'magic-block-meta' ),
+				hasField
+					? __( 'This block will render that field on the front end.', 'magic-block-meta' )
+					: __( 'Choose a field in block settings.', 'magic-block-meta' ),
+			]
 		);
 	}
 
@@ -315,7 +390,7 @@
 		return Object.assign( {}, blockProps, {
 			className: [
 				blockProps.className,
-				'content' === resolvedFieldMode ? 'elodin-block-meta--content' : 'elodin-block-meta--single',
+				'content' === resolvedFieldMode ? 'magic-block-meta--content' : 'magic-block-meta--single',
 			]
 				.filter( Boolean )
 				.join( ' ' ),
@@ -329,7 +404,7 @@
 			createElement(
 				'p',
 				{
-					className: 'elodin-block-meta__value',
+					className: 'magic-block-meta__value',
 					style: {
 						background: 'transparent',
 					},
@@ -350,14 +425,29 @@
 					status: 'warning',
 					isDismissible: false,
 				},
-				__( 'Choose a meta field in the block settings to control when this region renders on the front end.', 'elodin-block-meta' )
+				__( 'Choose a meta field in the block settings to control when this region renders on the front end.', 'magic-block-meta' )
 			);
 		}
 
 		return null;
 	}
 
-	function renderFieldSettings( attributes, setAttributes, isTemplateEditor, inferredPostType, fields, selectedField, title, showFieldMode ) {
+	function renderFieldSettings( attributes, setAttributes, isTemplateEditor, defaultPostType, fields, selectedField, title, showFieldMode, options ) {
+		const fieldHelp =
+			options && options.fieldHelp
+				? options.fieldHelp
+				: __(
+						'Choose one of the supported meta fields for this post type.',
+						'magic-block-meta'
+				  );
+		const emptyFieldHelp =
+			options && options.emptyFieldHelp
+				? options.emptyFieldHelp
+				: __(
+						'No compatible meta fields are available for the selected post type.',
+						'magic-block-meta'
+				  );
+
 		return createElement(
 			PanelBody,
 			{
@@ -366,9 +456,9 @@
 			},
 			isTemplateEditor
 				? createElement( SelectControl, {
-						label: __( 'Target Post Type', 'elodin-block-meta' ),
-						value: attributes.targetPostType || inferredPostType,
-						options: buildPostTypeOptions(),
+						label: __( 'Target Post Type', 'magic-block-meta' ),
+						value: attributes.targetPostType || '',
+						options: buildTemplatePostTypeOptions( defaultPostType ),
 						onChange: function ( nextPostType ) {
 							setAttributes( {
 								targetPostType: nextPostType,
@@ -376,13 +466,13 @@
 							} );
 						},
 						help: __(
-							'Used only while configuring this block in the template editor.',
-							'elodin-block-meta'
+							'Leave this on the current context to follow the template or loop automatically, or choose a specific post type to override it.',
+							'magic-block-meta'
 						),
 				  } )
 				: null,
 			createElement( SelectControl, {
-				label: __( 'Field', 'elodin-block-meta' ),
+				label: __( 'Field', 'magic-block-meta' ),
 				value: attributes.metaKey || '',
 				options: buildFieldOptions( fields ),
 				onChange: function ( nextMetaKey ) {
@@ -390,20 +480,11 @@
 						metaKey: nextMetaKey,
 					} );
 				},
-				help:
-					fields.length > 0
-						? __(
-								'Choose one of the registered plain-text meta fields for this post type.',
-								'elodin-block-meta'
-						  )
-						: __(
-								'No compatible text meta fields are available for the selected post type.',
-								'elodin-block-meta'
-						  ),
+				help: fields.length > 0 ? fieldHelp : emptyFieldHelp,
 			} ),
 			showFieldMode
 				? createElement( SelectControl, {
-						label: __( 'Field Mode', 'elodin-block-meta' ),
+						label: __( 'Field Mode', 'magic-block-meta' ),
 						value: attributes.fieldMode || 'auto',
 						options: buildFieldModeOptions( selectedField ),
 						onChange: function ( nextFieldMode ) {
@@ -413,14 +494,14 @@
 						},
 						help: __(
 							'Auto follows the registered meta field. Content area uses Enter for paragraphs and Shift+Enter for line breaks.',
-							'elodin-block-meta'
+							'magic-block-meta'
 						),
 				  } )
 				: null
 		);
 	}
 
-	registerBlockType( 'elodin/block-meta', {
+	registerBlockType( 'magic/block-meta', {
 		edit: function ( props ) {
 			const attributes = props.attributes;
 			const setAttributes = props.setAttributes;
@@ -429,10 +510,10 @@
 			const editorContext = useEditorContext();
 			const resolved = getResolvedPostType( editorContext, attributes, props.context || {} );
 			const isTemplateEditor = resolved.isTemplateEditor;
-			const inferredPostType = resolved.inferredPostType;
+			const defaultPostType = resolved.defaultPostType;
 			const resolvedPostType = resolved.resolvedPostType;
 			const canConfigureBinding = resolved.canConfigureBinding;
-			const fields = getFieldsForPostType( resolvedPostType );
+			const fields = getFieldsForPostType( resolvedPostType, 'text' );
 			const selectedField =
 				fields.find( function ( field ) {
 					return field.value === attributes.metaKey;
@@ -490,66 +571,66 @@
 							attributes,
 							setAttributes,
 							isTemplateEditor,
-							inferredPostType,
+							defaultPostType,
 							fields,
 							selectedField,
-							__( 'Meta Field', 'elodin-block-meta' ),
-							true
+							__( 'Magic Meta Field: Text', 'magic-block-meta' ),
+							true,
+							{
+								fieldHelp: __(
+									'Choose one of the registered plain-text meta fields for this post type.',
+									'magic-block-meta'
+								),
+								emptyFieldHelp: __(
+									'No compatible text meta fields are available for the selected post type.',
+									'magic-block-meta'
+								),
+							}
 						)
 					)
 					: null,
 				! attributes.metaKey
 					? ( isTemplateEditor
-						? renderTemplateNotice( blockProps, resolvedPostType, false )
-						: createElement(
-								'div',
-								getFieldWrapperProps( blockProps, resolvedFieldMode ),
-								createElement(
-									Placeholder,
-									{
-										label: __( 'Meta Field', 'elodin-block-meta' ),
-										instructions: __(
-											'Select a registered text meta field in the block settings.',
-											'elodin-block-meta'
-										),
-									},
-									createElement(
-										'p',
-										null,
-										fields.length > 0
-											? sprintf(
-													__( '%d fields available for this post type.', 'elodin-block-meta' ),
-													fields.length
-											  )
-											: __(
-													'No compatible text meta fields are currently registered for this post type.',
-													'elodin-block-meta'
-											  )
-									)
-								)
+						? renderTemplateNotice( blockProps, resolvedPostType, false, __( 'Magic Meta Field: Text', 'magic-block-meta' ) )
+						: renderCompactState(
+							blockProps,
+							resolvedFieldMode,
+							__( 'Magic Meta Field: Text', 'magic-block-meta' ),
+							[
+								fields.length > 0
+									? sprintf(
+											__( '%d fields available for this post type.', 'magic-block-meta' ),
+											fields.length
+									  )
+									: __(
+											'No compatible text meta fields are currently registered for this post type.',
+											'magic-block-meta'
+									  ),
+								__( 'Choose a field in block settings.', 'magic-block-meta' ),
+							]
 						  ) )
 					: ! canEditInline
 						? renderLockedFieldPreview( blockProps, selectedField, attributes.metaKey, resolvedFieldMode )
 						: createElement(
-								'div',
-								getFieldWrapperProps( blockProps, resolvedFieldMode ),
-								createElement( RichText, {
-									tagName: 'content' === resolvedFieldMode ? 'div' : 'p',
-									className: 'elodin-block-meta__value',
-									value: editorValue,
-									onChange: updateMetaValue,
-									placeholder: selectedField ? selectedField.label : attributes.metaKey,
-									allowedFormats: [],
-									withoutInteractiveFormatting: true,
-									identifier: 'value',
-									disableLineBreaks: 'single' === resolvedFieldMode,
-									multiline: 'content' === resolvedFieldMode ? 'p' : undefined,
-									style: {
-										background: 'transparent',
-									},
-									'aria-label': selectedField ? selectedField.label : attributes.metaKey,
-								} )
-							)
+							'div',
+							getFieldWrapperProps( blockProps, resolvedFieldMode ),
+							createElement( RichText, {
+								tagName: 'content' === resolvedFieldMode ? 'div' : 'p',
+								className: 'magic-block-meta__value',
+								value: editorValue,
+								onChange: updateMetaValue,
+								placeholder: selectedField ? selectedField.label : attributes.metaKey,
+								allowedFormats: [],
+								withoutInteractiveFormatting: true,
+								identifier: 'value',
+								disableLineBreaks: 'single' === resolvedFieldMode,
+								multiline: 'content' === resolvedFieldMode ? 'p' : undefined,
+								style: {
+									background: 'transparent',
+								},
+								'aria-label': selectedField ? selectedField.label : attributes.metaKey,
+							} )
+						  )
 			);
 		},
 		save: function () {
@@ -557,21 +638,21 @@
 		},
 	} );
 
-	registerBlockType( 'elodin/block-meta-conditional', {
+	registerBlockType( 'magic/block-meta-conditional', {
 		edit: function ( props ) {
 			const attributes = props.attributes;
 			const setAttributes = props.setAttributes;
 			const blockProps = useBlockProps( {
-				className: 'elodin-block-meta-conditional',
+				className: 'magic-block-meta-conditional',
 			} );
 
 			const editorContext = useEditorContext();
 			const resolved = getResolvedPostType( editorContext, attributes, props.context || {} );
 			const isTemplateEditor = resolved.isTemplateEditor;
-			const inferredPostType = resolved.inferredPostType;
+			const defaultPostType = resolved.defaultPostType;
 			const resolvedPostType = resolved.resolvedPostType;
 			const canConfigureBinding = resolved.canConfigureBinding;
-			const fields = getFieldsForPostType( resolvedPostType );
+			const fields = getFieldsForPostType( resolvedPostType, 'text' );
 			const selectedField =
 				fields.find( function ( field ) {
 					return field.value === attributes.metaKey;
@@ -610,20 +691,30 @@
 								attributes,
 								setAttributes,
 								isTemplateEditor,
-								inferredPostType,
+								defaultPostType,
 								fields,
 								selectedField,
-								__( 'Meta Field Conditional', 'elodin-block-meta' ),
-								false
+								__( 'Meta Field Conditional', 'magic-block-meta' ),
+								false,
+								{
+									fieldHelp: __(
+										'Choose one of the supported text meta fields for this post type.',
+										'magic-block-meta'
+									),
+									emptyFieldHelp: __(
+										'No compatible text meta fields are available for the selected post type.',
+										'magic-block-meta'
+									),
+								}
 							),
 							createElement(
 								PanelBody,
 								{
-									title: __( 'Display Rules', 'elodin-block-meta' ),
+									title: __( 'Display Rules', 'magic-block-meta' ),
 									initialOpen: true,
 								},
 								createElement( SelectControl, {
-									label: __( 'Hide when', 'elodin-block-meta' ),
+									label: __( 'Hide when', 'magic-block-meta' ),
 									value: attributes.hideWhen || 'empty',
 									options: buildHideWhenOptions(),
 									onChange: function ( nextHideWhen ) {
@@ -633,23 +724,27 @@
 									},
 									help: __(
 										'Front end only. This block always stays visible while editing.',
-										'elodin-block-meta'
+										'magic-block-meta'
 									),
 								} )
 							)
 						)
 					)
 					: null,
-				createElement(
-					'div',
-					innerBlocksProps,
-					isTemplateEditor ? renderConditionalTemplateNotice( selectedField, attributes.metaKey ) : null,
-					innerBlocksProps.children
-				)
+				! attributes.metaKey
+					? createElement(
+						'div',
+						innerBlocksProps,
+						[
+							renderConditionalTemplateNotice( selectedField, attributes.metaKey ),
+							innerBlocksProps.children,
+						]
+					)
+					: createElement( 'div', innerBlocksProps, innerBlocksProps.children )
 			);
 		},
 		save: function () {
 			return createElement( InnerBlocks.Content );
 		},
 	} );
-} )( window.wp, window.elodinBlockMetaSettings || {} );
+} )( window.wp, window.magicBlockMetaSettings || {} );

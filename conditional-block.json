@@ -1,12 +1,13 @@
 {
 	"apiVersion": 3,
-	"name": "elodin/block-meta-conditional",
-	"title": "Meta Field Conditional",
+	"name": "magic/block-meta-conditional",
+	"title": "Magic Meta Field Conditional",
 	"category": "widgets",
 	"icon": "visibility",
 	"description": "Render nested blocks only when a selected meta field meets the chosen condition.",
-	"textdomain": "elodin-block-meta",
-	"editorScript": "elodin-block-meta-editor",
+	"keywords": [ "magic", "meta", "field", "conditional" ],
+	"textdomain": "magic-block-meta",
+	"editorScript": "magic-block-meta-editor",
 	"attributes": {
 		"metaKey": {
 			"type": "string",

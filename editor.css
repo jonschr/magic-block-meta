@@ -1,17 +1,17 @@
-.editor-styles-wrapper .wp-block-elodin-block-meta.elodin-block-meta--single .elodin-block-meta__value {
+.editor-styles-wrapper .wp-block-magic-block-meta.magic-block-meta--single .magic-block-meta__value {
 	margin: 0;
 }
 
-.editor-styles-wrapper .wp-block-elodin-block-meta.elodin-block-meta--content .elodin-block-meta__value > p {
+.editor-styles-wrapper .wp-block-magic-block-meta.magic-block-meta--content .magic-block-meta__value > p {
 	margin-block-start: 0;
 	margin-block-end: 0;
 }
 
-.editor-styles-wrapper .wp-block-elodin-block-meta.elodin-block-meta--content .elodin-block-meta__value > p + p {
+.editor-styles-wrapper .wp-block-magic-block-meta.magic-block-meta--content .magic-block-meta__value > p + p {
 	margin-block-start: var(--wp--style--block-gap, 1.5em);
 }
 
-.editor-styles-wrapper .wp-block-elodin-block-meta {
+.editor-styles-wrapper .wp-block-magic-block-meta {
 	--wp-admin-theme-color: #7f54b3;
 	--wp-admin-theme-color--rgb: 127, 84, 179;
 	--wp-admin-theme-color-darker-10: #70449f;
@@ -24,6 +24,37 @@
 	outline-offset: 0;
 }
 
-.editor-styles-wrapper .wp-block-elodin-block-meta:hover:not(.is-selected):not(:focus-within) {
+.editor-styles-wrapper .wp-block-magic-block-meta:hover:not(.is-selected):not(:focus-within) {
 	box-shadow: inset 0 0 0 1px #fff, 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wp-admin-theme-color);
+}
+
+.editor-styles-wrapper .wp-block-magic-block-meta .magic-block-meta__placeholder,
+.editor-styles-wrapper .wp-block-magic-block-meta-conditional .magic-block-meta__placeholder {
+	display: grid;
+	gap: 6px;
+	padding: 12px 14px;
+	background: #fcf9e8;
+	border: 1px solid #e0b849;
+	border-radius: 2px;
+}
+
+.editor-styles-wrapper .wp-block-magic-block-meta .magic-block-meta__placeholder-title,
+.editor-styles-wrapper .wp-block-magic-block-meta-conditional .magic-block-meta__placeholder-title,
+.editor-styles-wrapper .wp-block-magic-block-meta .magic-block-meta__placeholder-text,
+.editor-styles-wrapper .wp-block-magic-block-meta-conditional .magic-block-meta__placeholder-text {
+	margin: 0;
+}
+
+.editor-styles-wrapper .wp-block-magic-block-meta .magic-block-meta__placeholder-title,
+.editor-styles-wrapper .wp-block-magic-block-meta-conditional .magic-block-meta__placeholder-title {
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}
+
+.editor-styles-wrapper .wp-block-magic-block-meta .magic-block-meta__placeholder-text,
+.editor-styles-wrapper .wp-block-magic-block-meta-conditional .magic-block-meta__placeholder-text {
+	font-size: 11px;
+	line-height: 1.4;
+	color: #5b4b1f;
 }
