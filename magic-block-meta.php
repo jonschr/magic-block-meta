@@ -3,7 +3,7 @@
 	Plugin Name: Magic Block Meta
 	Plugin URI: https://elod.in
 	Description: Generic block and editor tools for rendering and editing registered post meta in block themes.
-	Version: 0.1.0
+	Version: 0.1.1
 	Author: Jon Schroeder
 	Author URI: https://elod.in
 */
@@ -12,7 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'MAGIC_BLOCK_META_VERSION', '0.1.0' );
+define( 'MAGIC_BLOCK_META_DIR', plugin_dir_path( __FILE__ ) );
+define( 'MAGIC_BLOCK_META_VERSION', '0.1.1' );
 
 /**
  * Register the editor script and block type.
@@ -423,4 +424,23 @@ function magic_block_meta_render_conditional_block( $attributes, $content, $bloc
 		get_block_wrapper_attributes(),
 		$content
 	);
+}
+
+// Load Plugin Update Checker with error handling.
+$update_checker_file = MAGIC_BLOCK_META_DIR . 'vendor/plugin-update-checker/plugin-update-checker.php';
+if ( file_exists( $update_checker_file ) ) {
+	require $update_checker_file;
+
+	if ( class_exists( 'Puc_v4_Factory' ) ) {
+		$update_checker = Puc_v4_Factory::buildUpdateChecker(
+			'https://github.com/jonschr/elodin-block-meta',
+			__FILE__,
+			'magic-block-meta'
+		);
+
+		// Set the branch that contains the stable release.
+		if ( method_exists( $update_checker, 'setBranch' ) ) {
+			$update_checker->setBranch( 'master' );
+		}
+	}
 }
