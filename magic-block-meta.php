@@ -3,7 +3,7 @@
 	Plugin Name: Magic Block Meta
 	Plugin URI: https://elod.in
 	Description: Generic block and editor tools for rendering and editing registered post meta in block themes.
-	Version: 0.1.1
+	Version: 0.1.2
 	Author: Jon Schroeder
 	Author URI: https://elod.in
 */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'MAGIC_BLOCK_META_DIR', plugin_dir_path( __FILE__ ) );
-define( 'MAGIC_BLOCK_META_VERSION', '0.1.1' );
+define( 'MAGIC_BLOCK_META_VERSION', '0.1.2' );
 
 /**
  * Register the editor script and block type.
@@ -433,7 +433,7 @@ if ( file_exists( $update_checker_file ) ) {
 
 	if ( class_exists( 'Puc_v4_Factory' ) ) {
 		$update_checker = Puc_v4_Factory::buildUpdateChecker(
-			'https://github.com/jonschr/elodin-block-meta',
+			'https://github.com/jonschr/magic-block-meta',
 			__FILE__,
 			'magic-block-meta'
 		);
