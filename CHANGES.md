@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.10 - 2026-04-08
+## 0.2.0 - 2026-04-08
 - Made `Magic Post Terms` scalable by adding a search field inside the term picker and switching the editor to fetch matching terms on demand instead of loading a fixed first batch.
 
 ## 0.1.9 - 2026-04-08
