@@ -3,7 +3,7 @@
 	Plugin Name: Magic Block Meta
 	Plugin URI: https://elod.in
 	Description: Generic block and editor tools for rendering and editing registered post meta in block themes.
-	Version: 0.2.0
+	Version: 0.2.2
 	Author: Jon Schroeder
 	Author URI: https://elod.in
 */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'MAGIC_BLOCK_META_DIR', plugin_dir_path( __FILE__ ) );
-define( 'MAGIC_BLOCK_META_VERSION', '0.2.0' );
+define( 'MAGIC_BLOCK_META_VERSION', '0.2.2' );
 
 /**
  * Register the editor script and block type.
@@ -49,10 +49,13 @@ function magic_block_meta_register() {
 		plugins_url( 'panel.js', __FILE__ ),
 		array(
 			'wp-api-fetch',
+			'wp-block-editor',
 			'wp-components',
+			'wp-compose',
 			'wp-data',
 			'wp-edit-post',
 			'wp-element',
+			'wp-hooks',
 			'wp-i18n',
 			'wp-plugins',
 		),
@@ -121,12 +124,12 @@ function magic_block_meta_support_bindings( $supported_attributes ) {
 add_filter( 'block_bindings_supported_attributes_magic/block-meta', 'magic_block_meta_support_bindings' );
 
 /**
- * Load the document settings panel only in the post editor.
+ * Load the editor enhancements where button/template editing happens.
  */
 function magic_block_meta_enqueue_panel_script() {
 	$screen = get_current_screen();
 
-	if ( ! $screen || ! in_array( $screen->base, array( 'post', 'post-new' ), true ) ) {
+	if ( ! $screen || ! method_exists( $screen, 'is_block_editor' ) || ! $screen->is_block_editor() ) {
 		return;
 	}
 

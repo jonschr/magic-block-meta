@@ -13,6 +13,7 @@
 	const registerBlockType = wp.blocks.registerBlockType;
 	const useBlockProps = wp.blockEditor.useBlockProps;
 	const InspectorControls = wp.blockEditor.InspectorControls;
+	const useBlockEditingMode = wp.blockEditor.useBlockEditingMode;
 	const RichText = wp.blockEditor.RichText;
 	const InnerBlocks = wp.blockEditor.InnerBlocks;
 	const useInnerBlocksProps = wp.blockEditor.useInnerBlocksProps;
@@ -1176,6 +1177,11 @@
 				editorContext.postType === resolvedPostType &&
 				! isTemplateEditor
 			);
+			const canConfigureTermsBlock = ! canEditInline;
+
+			if ( 'function' === typeof useBlockEditingMode ) {
+				useBlockEditingMode( canEditInline ? 'contentOnly' : 'default' );
+			}
 
 			const termLabelById = {};
 			const termsById = {};
@@ -1246,11 +1252,13 @@
 			return createElement(
 				Fragment,
 				null,
-				createElement(
-					InspectorControls,
-					null,
-					renderTermsSettings( attributes, setAttributes, taxonomies, taxonomyObject )
-				),
+				canConfigureTermsBlock
+					? createElement(
+						InspectorControls,
+						null,
+						renderTermsSettings( attributes, setAttributes, taxonomies, taxonomyObject )
+					  )
+					: null,
 				! attributes.term
 					? createElement(
 						'div',

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 - 2026-04-08
+- Added an explicit `Link Target` control for `core/button` in the block editor so button targets can be set clearly in post, template, and loop editing contexts.
+- Split `Magic Post Terms` editing modes so single-post editing stays content-only for term assignment, while templates and loops retain taxonomy/display settings and paragraph-style controls.
+
 ## 0.2.0 - 2026-04-08
 - Made `Magic Post Terms` scalable by adding a search field inside the term picker and switching the editor to fetch matching terms on demand instead of loading a fixed first batch.
 
