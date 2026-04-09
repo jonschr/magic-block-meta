@@ -1,0 +1,37 @@
+{
+	"apiVersion": 3,
+	"name": "magic/block-meta-placeholder",
+	"title": "Magic Meta Field: Placeholder",
+	"category": "widgets",
+	"icon": "edit-page",
+	"description": "Edit a registered plain-text post meta field from an editor-only placeholder that renders nothing on the front end.",
+	"keywords": [ "magic", "meta", "field", "placeholder", "url" ],
+	"textdomain": "magic-block-meta",
+	"editorScript": "magic-block-meta-editor",
+	"attributes": {
+		"metaKey": {
+			"type": "string",
+			"default": ""
+		},
+		"targetPostType": {
+			"type": "string",
+			"default": ""
+		},
+		"value": {
+			"type": "string",
+			"default": ""
+		}
+	},
+	"usesContext": [
+		"postId",
+		"postType",
+		"query",
+		"previewPostType",
+		"templateSlug"
+	],
+	"supports": {
+		"html": false,
+		"className": false,
+		"anchor": false
+	}
+}

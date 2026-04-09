@@ -3,7 +3,7 @@
 	Plugin Name: Magic Block Meta
 	Plugin URI: https://elod.in
 	Description: Generic block and editor tools for rendering and editing registered post meta in block themes.
-	Version: 0.1.2
+	Version: 0.1.10
 	Author: Jon Schroeder
 	Author URI: https://elod.in
 */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'MAGIC_BLOCK_META_DIR', plugin_dir_path( __FILE__ ) );
-define( 'MAGIC_BLOCK_META_VERSION', '0.1.2' );
+define( 'MAGIC_BLOCK_META_VERSION', '0.1.10' );
 
 /**
  * Register the editor script and block type.
@@ -87,6 +87,21 @@ function magic_block_meta_register() {
 		__DIR__ . '/conditional-block.json',
 		array(
 			'render_callback' => 'magic_block_meta_render_conditional_block',
+		)
+	);
+
+	register_block_type(
+		__DIR__ . '/placeholder-block.json',
+		array(
+			'render_callback' => 'magic_block_meta_render_placeholder_block',
+		)
+	);
+
+	register_block_type(
+		__DIR__ . '/terms-block.json',
+		array(
+			'render_callback'    => 'magic_block_meta_render_post_terms_block',
+			'variation_callback' => 'magic_block_meta_build_post_terms_variations',
 		)
 	);
 }
@@ -424,6 +439,179 @@ function magic_block_meta_render_conditional_block( $attributes, $content, $bloc
 		get_block_wrapper_attributes(),
 		$content
 	);
+}
+
+/**
+ * Return the public REST-enabled taxonomies that can be displayed by the terms block.
+ *
+ * @return array<string, WP_Taxonomy>
+ */
+function magic_block_meta_get_supported_taxonomies() {
+	$taxonomies = get_taxonomies(
+		array(
+			'publicly_queryable' => true,
+			'show_in_rest'       => true,
+		),
+		'objects'
+	);
+
+	return array_filter(
+		$taxonomies,
+		static function ( $taxonomy ) {
+			return $taxonomy instanceof WP_Taxonomy;
+		}
+	);
+}
+
+/**
+ * Build inserter variations for the custom post terms block.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function magic_block_meta_build_post_terms_variations() {
+	$taxonomies        = magic_block_meta_get_supported_taxonomies();
+	$built_in          = array();
+	$custom_variations = array();
+
+	foreach ( $taxonomies as $taxonomy ) {
+		$variation = array(
+			'name'        => $taxonomy->name,
+			'title'       => sprintf(
+				/* translators: %s: taxonomy label. */
+				__( 'Magic Meta Blocks: %s', 'magic-block-meta' ),
+				$taxonomy->label
+			),
+			'description' => sprintf(
+				/* translators: %s: taxonomy label. */
+				__( 'Display and edit assigned terms from the taxonomy: %s', 'magic-block-meta' ),
+				$taxonomy->label
+			),
+			'attributes'  => array(
+				'term' => $taxonomy->name,
+			),
+			'isActive'    => array( 'term' ),
+			'scope'       => array( 'inserter', 'transform' ),
+		);
+
+		if ( 'category' === $taxonomy->name ) {
+			$variation['isDefault'] = true;
+		}
+
+		if ( $taxonomy->_builtin ) {
+			$built_in[] = $variation;
+		} else {
+			$custom_variations[] = $variation;
+		}
+	}
+
+	return array_merge( $built_in, $custom_variations );
+}
+
+/**
+ * Render the selected post terms on the frontend.
+ *
+ * @param array    $attributes Block attributes.
+ * @param string   $content    Saved block content.
+ * @param WP_Block $block      Parsed block instance.
+ * @return string
+ */
+function magic_block_meta_render_post_terms_block( $attributes, $content, $block ) {
+	unset( $content );
+
+	if ( ! $block instanceof WP_Block || empty( $block->context['postId'] ) || empty( $attributes['term'] ) ) {
+		return '';
+	}
+
+	$taxonomy = is_string( $attributes['term'] ) ? $attributes['term'] : '';
+
+	if ( '' === $taxonomy || ! is_taxonomy_viewable( $taxonomy ) ) {
+		return '';
+	}
+
+	$post_id = absint( $block->context['postId'] );
+	$terms   = get_the_terms( $post_id, $taxonomy );
+
+	if ( is_wp_error( $terms ) || empty( $terms ) ) {
+		return '';
+	}
+
+	$classes = array(
+		'wp-block-post-terms',
+		'taxonomy-' . $taxonomy,
+	);
+
+	if ( ! empty( $attributes['textAlign'] ) && is_string( $attributes['textAlign'] ) ) {
+		$classes[] = 'has-text-align-' . $attributes['textAlign'];
+	}
+
+	if ( isset( $attributes['style']['elements']['link']['color']['text'] ) ) {
+		$classes[] = 'has-link-color';
+	}
+
+	$separator = isset( $attributes['separator'] ) && '' !== $attributes['separator'] ? $attributes['separator'] : ', ';
+	$is_link   = ! isset( $attributes['isLink'] ) || (bool) $attributes['isLink'];
+	$prefix    = '';
+	$suffix    = '';
+
+	if ( ! empty( $attributes['prefix'] ) && is_string( $attributes['prefix'] ) ) {
+		$prefix = '<span class="wp-block-post-terms__prefix">' . esc_html( $attributes['prefix'] ) . '</span>';
+	}
+
+	if ( ! empty( $attributes['suffix'] ) && is_string( $attributes['suffix'] ) ) {
+		$suffix = '<span class="wp-block-post-terms__suffix">' . esc_html( $attributes['suffix'] ) . '</span>';
+	}
+
+	$items = array_map(
+		static function ( $term ) use ( $is_link ) {
+			$label = esc_html( $term->name );
+
+			if ( ! $is_link ) {
+				return $label;
+			}
+
+			$url = get_term_link( $term );
+
+			if ( is_wp_error( $url ) ) {
+				return $label;
+			}
+
+			return sprintf(
+				'<a href="%1$s" rel="tag">%2$s</a>',
+				esc_url( $url ),
+				$label
+			);
+		},
+		$terms
+	);
+
+	$separator_markup   = '<span class="wp-block-post-terms__separator">' . esc_html( $separator ) . '</span>';
+	$wrapper_attributes = get_block_wrapper_attributes(
+		array(
+			'class' => implode( ' ', $classes ),
+		)
+	);
+
+	return sprintf(
+		'<div %1$s>%2$s%3$s%4$s</div>',
+		$wrapper_attributes,
+		$prefix,
+		implode( $separator_markup, $items ),
+		$suffix
+	);
+}
+
+/**
+ * Render nothing for the editor-only placeholder block.
+ *
+ * @param array    $attributes Block attributes.
+ * @param string   $content    Saved block content.
+ * @param WP_Block $block      Parsed block instance.
+ * @return string
+ */
+function magic_block_meta_render_placeholder_block( $attributes, $content, $block ) {
+	unset( $attributes, $content, $block );
+
+	return '';
 }
 
 // Load Plugin Update Checker with error handling.

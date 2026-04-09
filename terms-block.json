@@ -1,0 +1,97 @@
+{
+	"apiVersion": 3,
+	"name": "magic/post-terms",
+	"title": "Magic Meta Blocks: Post Terms",
+	"category": "text",
+	"description": "Display post terms and optionally edit the current post's assigned terms directly in the block.",
+	"keywords": [ "terms", "taxonomy", "categories", "tags" ],
+	"textdomain": "magic-block-meta",
+	"editorScript": "magic-block-meta-editor",
+	"editorStyle": "magic-block-meta-editor-style",
+	"style": "wp-block-post-terms",
+	"attributes": {
+		"term": {
+			"type": "string"
+		},
+		"textAlign": {
+			"type": "string"
+		},
+		"separator": {
+			"type": "string",
+			"default": ", "
+		},
+		"prefix": {
+			"type": "string",
+			"default": "",
+			"role": "content"
+		},
+		"suffix": {
+			"type": "string",
+			"default": "",
+			"role": "content"
+		},
+		"isLink": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"usesContext": [ "postId", "postType", "query", "previewPostType", "templateSlug" ],
+	"example": {
+		"viewportWidth": 350
+	},
+	"supports": {
+		"splitting": false,
+		"anchor": true,
+		"className": false,
+		"html": false,
+		"color": {
+			"gradients": true,
+			"link": true,
+			"__experimentalDefaultControls": {
+				"background": true,
+				"text": true,
+				"link": true
+			}
+		},
+		"spacing": {
+			"margin": true,
+			"padding": true,
+			"__experimentalDefaultControls": {
+				"margin": false,
+				"padding": false
+			}
+		},
+		"typography": {
+			"fontSize": true,
+			"lineHeight": true,
+			"__experimentalFontFamily": true,
+			"__experimentalFontWeight": true,
+			"__experimentalFontStyle": true,
+			"__experimentalTextTransform": true,
+			"__experimentalTextDecoration": true,
+			"__experimentalLetterSpacing": true,
+			"__experimentalWritingMode": true,
+			"fitText": true,
+			"__experimentalDefaultControls": {
+				"fontSize": true
+			}
+		},
+		"__experimentalSelector": "p",
+		"__unstablePasteTextInline": true,
+		"interactivity": {
+			"clientNavigation": true
+		},
+		"__experimentalBorder": {
+			"radius": true,
+			"color": true,
+			"width": true,
+			"style": true,
+			"__experimentalDefaultControls": {
+				"radius": true,
+				"color": true,
+				"width": true,
+				"style": true
+			}
+		}
+	}
+}
